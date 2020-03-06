@@ -40,7 +40,7 @@ file_list = f_GetPath(dir(uigetdir('','Select recording directory')));
 recFiles = file_list(endsWith(file_list,{'.edf','.rec'},'IgnoreCase',true));
 recDir = fileparts(file_list{1});
 % ===== GET MARKER FILES =====
-resp = AskYesNo({'  Use same directory for scoring files and recordings?\n\t--> "%s"',recDir});
+resp = f_AskYesNo({'  Use same directory for scoring files and recordings?\n\t--> "%s"',recDir});
 switch resp
     case 'yes'
         mrkFiles = file_list(endsWith(file_list,{'.csv','txt'},'IgnoreCase',true));
