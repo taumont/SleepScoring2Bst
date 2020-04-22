@@ -4,8 +4,9 @@
 %
 % Required files:
 %   Recordings: All recordings must be in EDF/REC format.
-%   Events:     All event files must be in CSV format as exported by Gaetan's tool OR in txt
-%               format as exported by RemLogic.
+%   Events:     Supported event format are:
+%                   - CSV as exported by Gaetan's tool
+%                   - TXT as exported by RemLogic
 %
 % REMARKS:
 %   Column names in the event files must be previously verified not to contain accents.
@@ -30,10 +31,11 @@
 % Revised on:
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+clear;clc;
 
 addpath('edfreadZip/')
 CENTURY = 2000; % Since years are save as only 2 digits in EDF files, add this number to it.
-
+SUBJ_ID_LENGTH = 8;
 % ===== GET RECORDING FILES =====
 disp('Select recording directory')
 file_list = f_GetPath(dir(uigetdir('','Select recording directory')));
@@ -55,25 +57,26 @@ end
 % ===== GET RECORDING-MARKER FILES PAIRS =====
 [~,mrkFileName] = cellfun(@fileparts, mrkFiles, 'UniformOutput', false);
 [~,recFileName] = cellfun(@fileparts, recFiles, 'UniformOutput', false);
-iKeep = cellfun(@(c) find(strncmpi(c,mrkFileName,length(c))),recFileName,'UniformOutput',false);
+iKeep = cellfun(@(c) find(strncmpi(c,mrkFileName,SUBJ_ID_LENGTH)),recFileName,'UniformOutput',false);
 recFiles = recFiles(~cellfun(@isempty,iKeep));
-mrkFiles = mrkFiles([iKeep{:}]);
+mrkFiles =cellfun(@(c) cat(2,mrkFiles(c)),iKeep,'UniformOutput',false);
+
 % Get subject names
 [~,fn,~] = cellfun(@fileparts,recFiles,'UniformOutput',false);
 sId = cellfun(@(n)n{1},cellfun(@(c)strsplit(c,'_'),fn,'UniformOutput',false),'UniformOutput',false);
 
 % ===== PROCEED ON ONE FILE PAIR AT A TIME =====
-for iSubj = 1:size(mrkFiles,2)
+for iSubj = 1:length(recFiles)
     OVERWRITE = true; % Overwrite marker file if already exist
     f_PrintSubjectHeader(sId{iSubj});
-    for iFile = 1:size(mrkFiles,1)
-        fprintf('Processing file: %s\n',mrkFiles{iFile,iSubj})
+    for iFile = 1:length(mrkFiles{iSubj})
+        fprintf('Processing file: %s\n',mrkFiles{iSubj}{iFile})
         % Read event file
-        if endsWith(mrkFiles{iFile,iSubj},'csv','IgnoreCase',true)
-            cEvts = readcell(mrkFiles{iFile,iSubj});
+        if endsWith(mrkFiles{iSubj}{iFile},'csv','IgnoreCase',true)
+            cEvts = readcell(mrkFiles{iSubj}{iFile});
             [t_col,e_col,d_col] = sf_Get_Evt_Related_Columns(cEvts(1,:),'harmonie');
-        elseif endsWith(mrkFiles{iFile,iSubj},'txt','IgnoreCase',true)
-            tEvts = readtable(mrkFiles{iFile,iSubj});
+        elseif endsWith(mrkFiles{iSubj}{iFile},'txt','IgnoreCase',true)
+            tEvts = readtable(mrkFiles{iSubj}{iFile});
             colNames = tEvts.Properties.VariableNames;
             cEvts = [colNames; table2cell(tEvts)];
             [t_col,e_col,d_col] = sf_Get_Evt_Related_Columns(cEvts(1,:),'remlogic');
@@ -88,7 +91,7 @@ for iSubj = 1:size(mrkFiles,2)
         recStart = datetime([CENTURY+dtV(3),dtV(2),dtV(1),dtV(4:end)]);
         % Convert all events to Brainstorm event structure array
         events = f_Convert_Evt_2_Bst(cEvts(2:end,[t_col,e_col,d_col]),recStart);
-        if contains(mrkFiles{iFile,iSubj},{'artifact'},'IgnoreCase',true)
+        if contains(mrkFiles{iSubj}{iFile},{'artifact'},'IgnoreCase',true)
             events = events(~contains({events.label},{'R','W','N1','N2','N3','N/A'}));
         end
         if ~isempty(events)
