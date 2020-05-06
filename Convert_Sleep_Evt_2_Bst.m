@@ -65,6 +65,7 @@ mrkFiles =cellfun(@(c) cat(2,mrkFiles(c)),iKeep,'UniformOutput',false);
 [~,fn,~] = cellfun(@fileparts,recFiles,'UniformOutput',false);
 sId = cellfun(@(n)n{1},cellfun(@(c)strsplit(c,'_'),fn,'UniformOutput',false),'UniformOutput',false);
 
+% recFiles=recFiles([20,22,23,26,27]); mrkFiles=mrkFiles([20,22,23,26,27]); sId=sId([20,22,23,26,27]);
 % ===== PROCEED ON ONE FILE PAIR AT A TIME =====
 for iSubj = 1:length(recFiles)
     OVERWRITE = true; % Overwrite marker file if already exist
@@ -90,7 +91,20 @@ for iSubj = 1:length(recFiles)
         dtV = str2double(strsplit([hdr.startdate '.' hdr.starttime],'.'));
         recStart = datetime([CENTURY+dtV(3),dtV(2),dtV(1),dtV(4:end)]);
         % Convert all events to Brainstorm event structure array
-        events = f_Convert_Evt_2_Bst(cEvts(2:end,[t_col,e_col,d_col]),recStart);
+        if contains(recFiles{iSubj},'SAM028n1','IgnoreCase',true)
+            % ===== FIX FOR SAM028 NIGHT 1 (manual export induce a time lag) =====
+            evt_time = cellfun(@(c) {c-(hours(1)+minutes(42)+seconds(30))},cEvts(2:end,t_col));
+        elseif contains(recFiles{iSubj},'SAM028n2','IgnoreCase',true)
+            % ===== FIX FOR SAM028 NIGHT 2 (manual export induce a time lag) =====
+            evt_time = cellfun(@(c) {c-(hours(1)+minutes(27)+seconds(45))},cEvts(2:end,t_col));
+        else
+            evt_time = cEvts(2:end,t_col);
+        end
+        events = f_Convert_Evt_2_Bst([evt_time,cEvts(2:end,[e_col,d_col])],recStart);
+        % Makes sure no events are outside of recording duration. (Ex.: SAM015n2)
+        for iEvt = 1:length(events)
+            events(iEvt).times(events(iEvt).times>hdr.records) = hdr.records;
+        end
         if contains(mrkFiles{iSubj}{iFile},{'artifact'},'IgnoreCase',true)
             events = events(~contains({events.label},{'R','W','N1','N2','N3','N/A'}));
         end
@@ -101,6 +115,7 @@ for iSubj = 1:length(recFiles)
                 sEvt = load(evtFileName);
                 events = [sEvt.events,events];
             end
+            fprintf('Saving event file: %s\n',evtFileName)
             save(evtFileName,'-v6','events');
             OVERWRITE = false;
         end
